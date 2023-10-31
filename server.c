@@ -291,7 +291,7 @@ void user_interface() {
 }
 
 void run_tests() {
-    // Your testing logic here
+    // testing 
 }
 
 void cleanup() {
@@ -318,7 +318,7 @@ int main(int argc, char *argv[]) {
 
     initialize_server(port);
     load_chat_history();
-    load_user_accounts(); // Load user accounts from file
+    load_user_accounts(); 
     create_client_threads();
     user_interface();
     run_tests();

@@ -14,11 +14,12 @@ gcc -o client client.c
 ----------------------------------- 
 server
      ./server 12345
-client
-    ./client localhost 123456 2 < intext.txt
 
-    ./client localhost 12345 1 < intext.txt
+Registeration
+./client 127.0.0.1 12345 admin admin registration
 
-# Generate .py
-the above folder should be used to populate data in the intext.py
-    python generate.p
+Login
+./client 127.0.0.1 12345 admin admin login
+
+send message
+./client 127.0.0.1 12345 admin admin "It was not Easy"

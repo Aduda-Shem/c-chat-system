@@ -66,6 +66,24 @@ void hamming_encode(const char *data, char *encoded) {
     encoded[3] = (encoded[4] ^ encoded[5] ^ encoded[6]) + '0';
 }
 
+int hamming_decode(char *encoded, char *decoded) {
+    memset(decoded, 0, 4);
+    int p1 = (encoded[0] - '0') ^ (encoded[2] - '0') ^ (encoded[4] - '0') ^ (encoded[6] - '0');
+    int p2 = (encoded[1] - '0') ^ (encoded[2] - '0') ^ (encoded[5] - '0') ^ (encoded[6] - '0');
+    int p4 = (encoded[3] - '0') ^ (encoded[4] - '0') ^ (encoded[5] - '0') ^ (encoded[6] - '0');
+    int error_position = p1 + p2 * 2 + p4 * 4;
+    if (error_position != 0) {
+        encoded[error_position - 1] = (encoded[error_position - 1] == '0') ? '1' : '0';
+    }
+    decoded[0] = encoded[2];
+    decoded[1] = encoded[4];
+    decoded[2] = encoded[5];
+    decoded[3] = encoded[6];
+    return error_position;
+
+}
+
+
 void initialize_server(int port) {
     struct sockaddr_in serv_addr;
 
@@ -191,11 +209,14 @@ void *handle_messages(void *user_data) {
         } else {
             printf("Received message from client: %s\n", client_message);
 
-            unsigned int crc = calculate_crc32(client_message, n);
-            unsigned int received_crc;
-            recv(user->socket, &received_crc, sizeof(received_crc), 0);
+            unsigned int crc;
+            recv(user->socket, &crc, sizeof(crc), 0);
 
-            if (crc == received_crc) {
+            char decoded_message[MAX_MESSAGE_LEN];
+            hamming_decode(client_message, decoded_message);
+            unsigned int calculated_crc = calculate_crc32(decoded_message, strlen(decoded_message));
+
+            if (crc == calculated_crc) {
                 printf("CRC check passed.\n");
             } else {
                 printf("CRC check failed.\n");
@@ -291,7 +312,7 @@ void user_interface() {
 }
 
 void run_tests() {
-    // testing 
+    // testing
 }
 
 void cleanup() {
@@ -318,7 +339,7 @@ int main(int argc, char *argv[]) {
 
     initialize_server(port);
     load_chat_history();
-    load_user_accounts(); 
+    load_user_accounts();
     create_client_threads();
     user_interface();
     run_tests();

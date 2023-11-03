@@ -209,6 +209,8 @@ void *handle_messages(void *user_data) {
         } else {
             printf("Received message from client: %s\n", client_message);
 
+            // Handle the received message here
+
             unsigned int crc;
             recv(user->socket, &crc, sizeof(crc), 0);
 
@@ -225,6 +227,22 @@ void *handle_messages(void *user_data) {
     }
     return NULL;
 }
+
+void send_server_response(int client_socket, const char *response) {
+    unsigned int crc = calculate_crc32(response, strlen(response));
+
+    char response_with_crc[MAX_MESSAGE_LEN + 9];
+    snprintf(response_with_crc, sizeof(response_with_crc), "<RESPONSE>%s%08X</RESPONSE>", response, crc);
+
+    char encoded_response[8];
+    hamming_encode(response_with_crc, encoded_response);
+
+    int n = send(client_socket, encoded_response, 8, 0);
+    if (n < 0) {
+        error("ERROR sending server response");
+    }
+}
+
 
 void create_client_threads() {
     while (1) {
@@ -314,6 +332,7 @@ void user_interface() {
 void run_tests() {
     // testing
 }
+
 
 void cleanup() {
     for (int i = 0; i < MAX_USERS; i++) {

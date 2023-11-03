@@ -59,6 +59,41 @@ void error(const char *msg) {
     exit(1);
 }
 
+void send_request(int sockfd, const char *request) {
+    unsigned int crc32 = calculate_crc32(request, strlen(request));
+
+    char request_with_crc[MAX_MESSAGE_SIZE + 9];
+    snprintf(request_with_crc, sizeof(request_with_crc), "<REQUEST>%s%08X</REQUEST>", request, crc32);
+
+    char encoded_request[8];
+    hamming_encode(request_with_crc, encoded_request);
+
+    int n = write(sockfd, encoded_request, 8);
+
+    if (n < 0) {
+        error("ERROR writing to socket");
+    }
+}
+
+void receive_response(int sockfd) {
+    char buffer[8];
+    bzero(buffer, sizeof(buffer));
+    int n = read(sockfd, buffer, 8);
+
+    if (n < 0) {
+        error("ERROR reading from socket");
+    }
+
+    char decoded_response[8];
+    int decode_result = hamming_decode(buffer, decoded_response);
+
+    if (decode_result == 0) {
+        printf("Server response (decoded): %s\n", decoded_response);
+    } else {
+        printf("Hamming detected an error at position %d. Corrected message: %s\n", decode_result, decoded_response);
+    }
+}
+
 int main(int argc, char *argv[]) {
     if (argc < 6) {
         fprintf(stderr, "Usage: %s <server_ip> <server_port> <username> <password> <message>\n", argv[0]);
@@ -68,8 +103,9 @@ int main(int argc, char *argv[]) {
     int sockfd, portno, n;
     struct sockaddr_in serv_addr;
     struct hostent *server;
-    char buffer[MAX_BUFFER_LEN + 9];
-    unsigned int crc32;
+    char username[MAX_MESSAGE_SIZE];
+    char password[MAX_MESSAGE_SIZE];
+    char message[MAX_MESSAGE_SIZE];
 
     portno = atoi(argv[2]);
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
@@ -90,86 +126,25 @@ int main(int argc, char *argv[]) {
     bcopy((char *)server->h_addr, (char *)&serv_addr.sin_addr.s_addr, server->h_length);
     serv_addr.sin_port = htons(portno);
 
-   if (connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
-    error("ERROR connecting");
-}
+    if (connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
+        error("ERROR connecting");
+    }
 
-
-    char username[MAX_MESSAGE_SIZE];
-    char password[MAX_MESSAGE_SIZE];
-    char message[MAX_MESSAGE_SIZE];
     strncpy(username, argv[3], MAX_MESSAGE_SIZE);
     strncpy(password, argv[4], MAX_MESSAGE_SIZE);
     strncpy(message, argv[5], MAX_MESSAGE_SIZE);
 
-    // Send a LOGIN request with the username and password
-    char login_request[MAX_MESSAGE_SIZE + 9];
+    // Send a login request with the username and password
+    char login_request[MAX_MESSAGE_SIZE];
     snprintf(login_request, sizeof(login_request), "<LOGIN><USERNAME>%s</USERNAME><PASSWORD>%s</PASSWORD></LOGIN>", username, password);
+    send_request(sockfd, login_request);
+    receive_response(sockfd);
 
-    crc32 = calculate_crc32(login_request, strlen(login_request));
-
-    char login_request_with_crc[MAX_MESSAGE_SIZE + 9 + 8];
-    snprintf(login_request_with_crc, sizeof(login_request_with_crc), "<REQUEST>%s%08X</REQUEST>", login_request, crc32);
-
-    char encoded_login_request[8];
-    hamming_encode(login_request_with_crc, encoded_login_request);
-
-    n = write(sockfd, encoded_login_request, 8);
-
-    if (n < 0) {
-        error("ERROR writing to socket");
-    }
-
-    bzero(buffer, sizeof(buffer));
-    n = read(sockfd, buffer, 8);
-
-    if (n < 0) {
-        error("ERROR reading from socket");
-    }
-
-    char decoded_response[8];
-    int decode_result = hamming_decode(buffer, decoded_response);
-
-    if (decode_result == 0) {
-        printf("Server response (decoded): %s\n", decoded_response);
-    } else {
-        printf("Hamming detected an error at position %d. Corrected message: %s\n", decode_result, decoded_response);
-    }
-
-    // Now, the user is logged in and can send messages
-
-    // Send a MSG request to another client
-    char msg_request[MAX_MESSAGE_SIZE + 9];
+    // Send a message to the server
+    char msg_request[MAX_MESSAGE_SIZE];
     snprintf(msg_request, sizeof(msg_request), "<MSG><FROM>%s</FROM><TO>c2</TO><BODY>%s</BODY></MSG>", username, message);
-
-    crc32 = calculate_crc32(msg_request, strlen(msg_request));
-
-    char msg_request_with_crc[MAX_MESSAGE_SIZE + 9 + 8];
-    snprintf(msg_request_with_crc, sizeof(msg_request_with_crc), "<REQUEST>%s%08X</REQUEST>", msg_request, crc32);
-
-    char encoded_msg_request[8];
-    hamming_encode(msg_request_with_crc, encoded_msg_request);
-
-    n = write(sockfd, encoded_msg_request, 8);
-
-    if (n < 0) {
-        error("ERROR writing to socket");
-    }
-
-    bzero(buffer, sizeof(buffer));
-    n = read(sockfd, buffer, 8);
-
-    if (n < 0) {
-        error("ERROR reading from socket");
-    }
-
-    decode_result = hamming_decode(buffer, decoded_response);
-
-    if (decode_result == 0) {
-        printf("Server response (decoded): %s\n", decoded_response);
-    } else {
-        printf("Hamming detected an error at position %d. Corrected message: %s\n", decode_result, decoded_response);
-    }
+    send_request(sockfd, msg_request);
+    receive_response(sockfd);
 
     close(sockfd);
 
